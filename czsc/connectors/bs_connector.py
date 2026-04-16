@@ -41,24 +41,25 @@ def _to_bs_code(symbol: str) -> str:
     raise ValueError(f"无法识别的股票代码格式: {symbol}")
 
 
-def _freq_to_bs(freq: Freq) -> str:
+def _freq_to_bs(freq) -> str:
     """将 CZSC Freq 枚举转换为 BaoStock 的 frequency 参数
 
-    :param freq: CZSC 周期枚举
+    :param freq: CZSC 周期枚举或字符串
     :return: BaoStock frequency 参数值
     """
     freq_map = {
-        Freq.D: "d",
-        Freq.W: "w",
-        Freq.M: "m",
-        Freq.F5: "5",
-        Freq.F15: "15",
-        Freq.F30: "30",
-        Freq.F60: "60",
+        "日线": "d",
+        "周线": "w",
+        "月线": "m",
+        "5分钟": "5",
+        "15分钟": "15",
+        "30分钟": "30",
+        "60分钟": "60",
     }
-    if freq not in freq_map:
-        raise ValueError(f"BaoStock 不支持的周期: {freq.value}，仅支持 日线/周线/月线/5分钟/15分钟/30分钟/60分钟")
-    return freq_map[freq]
+    freq_val = freq.value if hasattr(freq, "value") else str(freq)
+    if freq_val not in freq_map:
+        raise ValueError(f"BaoStock 不支持的周期: {freq_val}，仅支持 日线/周线/月线/5分钟/15分钟/30分钟/60分钟")
+    return freq_map[freq_val]
 
 
 def _fq_to_bs(fq: str) -> str:
