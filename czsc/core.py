@@ -24,7 +24,10 @@ installed, rs_czsc_version = check_rs_czsc()
 
 
 if os.getenv("CZSC_USE_PYTHON", False) or not installed:
-    from rs_czsc import WeightBacktest
+    try:
+        from rs_czsc import WeightBacktest
+    except ImportError:
+        WeightBacktest = None
 
     from czsc.py import (
         BI,

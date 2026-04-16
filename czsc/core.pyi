@@ -1,54 +1,27 @@
-from rs_czsc import (
-    BI as BI,
-)
-from rs_czsc import (
-    CZSC as CZSC,
-)
-from rs_czsc import (
-    FX as FX,
-)
-from rs_czsc import (
-    ZS as ZS,
-)
-from rs_czsc import (
-    BarGenerator as BarGenerator,
-)
-from rs_czsc import (
-    Direction as Direction,
-)
-from rs_czsc import (
-    Event as Event,
-)
-from rs_czsc import (
-    FakeBI as FakeBI,
-)
-from rs_czsc import (
-    Freq as Freq,
-)
-from rs_czsc import (
-    Mark as Mark,
-)
-from rs_czsc import (
-    NewBar as NewBar,
-)
-from rs_czsc import (
-    Operate as Operate,
-)
-from rs_czsc import (
-    Position as Position,
-)
-from rs_czsc import (
-    RawBar as RawBar,
-)
-from rs_czsc import (
-    Signal as Signal,
-)
-from rs_czsc import (
-    WeightBacktest as WeightBacktest,
-)
-from rs_czsc import (
-    format_standard_kline as format_standard_kline,
-)
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from czsc.py import (
+        BI as BI,
+        CZSC as CZSC,
+        FX as FX,
+        ZS as ZS,
+        BarGenerator as BarGenerator,
+        Direction as Direction,
+        Event as Event,
+        FakeBI as FakeBI,
+        Freq as Freq,
+        Mark as Mark,
+        NewBar as NewBar,
+        Operate as Operate,
+        Position as Position,
+        RawBar as RawBar,
+        Signal as Signal,
+    )
+    try:
+        from rs_czsc import WeightBacktest as WeightBacktest
+    except ImportError:
+        WeightBacktest = None
 
 from czsc.py import (
     check_bi as check_bi,
@@ -99,3 +72,4 @@ __all__ = [
 ]
 
 def check_rs_czsc() -> tuple[bool, str | None]: ...
+def format_standard_kline(bars: list[RawBar], df=None, freqs=None) -> list[RawBar]: ...

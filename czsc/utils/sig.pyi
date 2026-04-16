@@ -5,9 +5,9 @@ from typing import Any
 import numpy as np
 from deprecated import deprecated as deprecated
 
-from czsc.py.enum import Direction as Direction
-from czsc.py.objects import BI as BI
-from czsc.py.objects import ZS as ZS
+from czsc.core import BI as BI
+from czsc.core import Direction as Direction
+from czsc.core import ZS as ZS
 from czsc.py.objects import RawBar as RawBar
 from czsc.py.objects import Signal as Signal
 
