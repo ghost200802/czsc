@@ -137,7 +137,10 @@ path = "czsc/__init__.py"
 testpaths = ["test"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
-addopts = "--tb=short -v -s --log-cli-level=INFO"
+addopts = "--tb=short -v -s --log-cli-level=INFO -m 'not integration'"
+markers = [
+    "integration: tests that require network access (deselect with '-m \"not integration\"')",
+]
 filterwarnings = [
     "ignore::DeprecationWarning",
     "ignore::PendingDeprecationWarning",

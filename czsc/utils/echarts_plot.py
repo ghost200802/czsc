@@ -465,10 +465,23 @@ def _prepare_kline_data(kline: list[dict], use_streamlit=False, width=1400, heig
 
     # 创建主图表（延迟导入，避免在模块加载时引入 streamlit 等重型依赖）
     if use_streamlit:
-        from lightweight_charts.widgets import StreamlitChart
+        import builtins as _bi
 
-        logger.info("使用 StreamlitChart")
-        chart = StreamlitChart(width=width, height=height)
+        _orig_open = _bi.open
+
+        def _utf8_open(file, *a, **kw):
+            if "encoding" not in kw:
+                kw["encoding"] = "utf-8"
+            return _orig_open(file, *a, **kw)
+
+        _bi.open = _utf8_open
+        try:
+            from lightweight_charts.widgets import StreamlitChart
+
+            logger.info("使用 StreamlitChart")
+            chart = StreamlitChart(width=width, height=height)
+        finally:
+            _bi.open = _orig_open
     else:
         from lightweight_charts import Chart
 
@@ -778,6 +791,119 @@ def _add_trade_signals(chart: "Chart", bs: list[dict]) -> None:
         logger.exception(f"添加买卖点标记失败: {e}")
 
 
+def _add_zs_boxes(chart: "Chart", zs: list[dict]) -> None:
+    """添加中枢矩形
+
+    :param chart: 图表对象
+    :param zs: 中枢数据，格式为 [{"sdt": datetime, "edt": datetime, "zg": float, "zd": float, "direction": str}, ...]
+    """
+    from datetime import datetime
+
+    from loguru import logger
+
+    if not zs:
+        return
+
+    try:
+        up_color = "rgba(255, 152, 0, 0.15)"
+        up_border_color = "#FF9800"
+        down_color = "rgba(33, 150, 243, 0.15)"
+        down_border_color = "#2196F3"
+
+        for item in zs:
+            sdt = item["sdt"]
+            edt = item["edt"]
+            zg = item["zg"]
+            zd = item["zd"]
+
+            if hasattr(sdt, "strftime"):
+                start_time = sdt
+            else:
+                try:
+                    start_time = datetime.strptime(str(sdt), "%Y-%m-%d")
+                except Exception:
+                    continue
+
+            if hasattr(edt, "strftime"):
+                end_time = edt
+            else:
+                try:
+                    end_time = datetime.strptime(str(edt), "%Y-%m-%d")
+                except Exception:
+                    continue
+
+            direction = item.get("direction", "")
+            if "向上" in str(direction):
+                color = up_border_color
+                fill_color = up_color
+            else:
+                color = down_border_color
+                fill_color = down_color
+
+            chart.box(
+                start_time=start_time,
+                start_value=zg,
+                end_time=end_time,
+                end_value=zd,
+                color=color,
+                fill_color=fill_color,
+                width=1,
+            )
+
+        logger.info(f"成功添加{len(zs)}个中枢矩形")
+    except Exception as e:
+        logger.warning(f"添加中枢矩形失败: {e}")
+
+
+def _add_bc_markers(chart: "Chart", bc: list[dict]) -> None:
+    """添加背驰标记
+
+    :param chart: 图表对象
+    :param bc: 背驰数据，格式为 [{"dt": datetime, "price": float, "bc_type": str}, ...]
+    """
+    from datetime import datetime
+
+    from loguru import logger
+
+    if not bc:
+        return
+
+    try:
+        for item in bc:
+            dt = item["dt"]
+            price = item["price"]
+            bc_type = item.get("bc_type", "背驰")
+
+            if hasattr(dt, "strftime"):
+                marker_time = dt
+            else:
+                try:
+                    marker_time = datetime.strptime(str(dt), "%Y-%m-%d")
+                except Exception:
+                    continue
+
+            if "下跌" in str(bc_type):
+                chart.marker(
+                    time=marker_time,
+                    position="below",
+                    shape="arrow_up",
+                    color="#E91E63",
+                    text=str(bc_type),
+                )
+            else:
+                chart.marker(
+                    time=marker_time,
+                    position="above",
+                    shape="arrow_down",
+                    color="#9C27B0",
+                    text=str(bc_type),
+                )
+
+        logger.info(f"成功添加{len(bc)}个背驰标记")
+    except Exception as e:
+        logger.warning(f"添加背驰标记失败: {e}")
+
+
 def _setup_chart_style(chart: "Chart", title: str) -> None:
     """设置图表样式
 
@@ -806,6 +932,8 @@ def trading_view_kline(
     bi: list[dict] | None = None,
     xd: list[dict] | None = None,
     bs: list[dict] | None = None,
+    zs: list[dict] | None = None,
+    bc: list[dict] | None = None,
     title: str = "缠中说禅K线分析",
     t_seq: list[int] | None = None,
     **kwargs,
@@ -820,6 +948,8 @@ def trading_view_kline(
     :param bi: 笔识别结果
     :param xd: 线段识别结果
     :param bs: 买卖点
+    :param zs: 中枢数据
+    :param bc: 背驰标记数据
     :param title: 图表标题
     :param t_seq: 均线系统
     :return: lightweight_charts Chart对象 或 None
@@ -831,6 +961,8 @@ def trading_view_kline(
     bi = bi or []
     xd = xd or []
     bs = bs or []
+    zs = zs or []
+    bc = bc or []
     t_seq = t_seq or [5, 13, 21]
 
     use_streamlit = kwargs.get("use_streamlit", False)
@@ -855,6 +987,12 @@ def trading_view_kline(
     # 添加MACD指标
     _add_macd_indicator(chart, kline, df_data)
 
+    # 添加中枢矩形
+    _add_zs_boxes(chart, zs)
+
+    # 添加背驰标记
+    _add_bc_markers(chart, bc)
+
     # 添加买卖点标记
     _add_trade_signals(chart, bs)
 
@@ -862,6 +1000,6 @@ def trading_view_kline(
     _setup_chart_style(chart, title)
 
     logger.info(f"创建 lightweight_charts 图表成功: {title}")
-    logger.info(f"包含: K线({len(kline)}), 均线({len(t_seq)}), 分型({len(fx)}), 笔({len(bi)}), 线段({len(xd)}), MACD")
+    logger.info(f"包含: K线({len(kline)}), 均线({len(t_seq)}), 分型({len(fx)}), 笔({len(bi)}), 线段({len(xd)}), 中枢({len(zs)}), 背驰({len(bc)}), MACD")
 
     return chart

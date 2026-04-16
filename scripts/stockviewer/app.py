@@ -14,6 +14,7 @@ import streamlit as st
 from czsc.connectors import bs_connector, ts_connector
 from czsc.core import CZSC, Freq, RawBar
 from czsc.utils.echarts_plot import trading_view_kline
+from czsc.utils.sig import get_zs_seq
 
 from scripts.stockviewer.bs_strategies import compute_bs_points, get_available_strategies
 
@@ -95,7 +96,65 @@ def run_czsc_analysis(raw_bars):
         bi_data = [{"dt": bi.fx_a.dt, "bi": bi.fx_a.fx} for bi in czsc_obj.bi_list]
         bi_data.append({"dt": czsc_obj.bi_list[-1].fx_b.dt, "bi": czsc_obj.bi_list[-1].fx_b.fx})
 
-    return kline_data, fx_data, bi_data, len(czsc_obj.bi_list), len(czsc_obj.fx_list)
+    zs_list = get_zs_seq(czsc_obj.bi_list) if czsc_obj.bi_list else []
+    zs_data = []
+    for zs in zs_list:
+        if zs.is_valid:
+            zs_data.append({
+                "sdt": zs.sdt,
+                "edt": zs.edt,
+                "zg": zs.zg,
+                "zd": zs.zd,
+                "zz": zs.zz,
+                "gg": zs.gg,
+                "dd": zs.dd,
+                "direction": zs.sdir.value,
+                "bi_count": len(zs.bis),
+            })
+
+    return kline_data, fx_data, bi_data, zs_data, len(czsc_obj.bi_list), len(czsc_obj.fx_list), len(zs_data)
+
+
+def compute_bc_markers(bi_list):
+    """基于笔力度比较计算背驰标记
+
+    :param bi_list: CZSC对象的bi_list
+    :return: 背驰标记列表 [{"dt": datetime, "price": float, "bc_type": str}, ...]
+    """
+    from czsc.py.enum import Direction
+
+    bc_data = []
+    if len(bi_list) < 5:
+        return bc_data
+
+    for i in range(2, len(bi_list)):
+        prev_bi = bi_list[i - 2]
+        curr_bi = bi_list[i]
+
+        if prev_bi.direction != curr_bi.direction:
+            continue
+
+        prev_power = prev_bi.power_price
+        curr_power = curr_bi.power_price
+
+        if prev_power <= 0 or curr_power <= 0:
+            continue
+
+        if curr_power < prev_power * 0.8:
+            if curr_bi.direction == Direction.Down:
+                bc_data.append({
+                    "dt": curr_bi.fx_b.dt,
+                    "price": curr_bi.fx_b.fx,
+                    "bc_type": "下跌背驰",
+                })
+            elif curr_bi.direction == Direction.Up:
+                bc_data.append({
+                    "dt": curr_bi.fx_b.dt,
+                    "price": curr_bi.fx_b.fx,
+                    "bc_type": "上涨背驰",
+                })
+
+    return bc_data
 
 
 def main():
@@ -139,11 +198,17 @@ def main():
             st.sidebar.caption(f"  • {name}：{strategy_descriptions[name]}")
 
     st.sidebar.markdown("---")
+    show_zs = st.sidebar.checkbox("显示中枢", value=False, help="在K线图上显示缠论中枢矩形区域")
+    show_bc = st.sidebar.checkbox("显示背驰标记", value=False, help="在K线图上标记笔力度背驰点")
+
+    st.sidebar.markdown("---")
     st.sidebar.info("""
     本页面展示股票K线与 CZSC 缠论分析结果：
     - **K线**：蜡烛图 + MA均线
     - **分型**：顶分型/底分型标记
     - **笔**：缠论笔的连线
+    - **中枢**：缠论中枢矩形区域（可选）
+    - **背驰**：笔力度背驰标记（可选）
     - **MACD**：副图指标
     - **买卖点**：选中策略后在图表上标记
     """)
@@ -186,10 +251,18 @@ def main():
 
     try:
         raw_bars = _dicts_to_raw_bars(bar_dicts)
-        kline_data, fx_data, bi_data, bi_count, fx_count = run_czsc_analysis(raw_bars)
+        kline_data, fx_data, bi_data, zs_data, bi_count, fx_count, zs_count = run_czsc_analysis(raw_bars)
     except Exception as e:
         st.error(f"CZSC 缠论分析失败: {e}")
         return
+
+    bc_data = []
+    if show_bc:
+        try:
+            czsc_obj = CZSC(raw_bars, max_bi_num=10000)
+            bc_data = compute_bc_markers(czsc_obj.bi_list)
+        except Exception as e:
+            st.warning(f"背驰标记计算失败: {e}")
 
     bs_data = []
     if selected_strategies:
@@ -212,15 +285,26 @@ def main():
     first_close = bar_dicts[0]["close"]
     change_pct = (last_close - first_close) / first_close * 100
 
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
+    metric_cols = st.columns(4)
+    with metric_cols[0]:
         st.metric("K线数量", f"{len(kline_data)}")
-    with col2:
+    with metric_cols[1]:
         st.metric("笔数量", f"{bi_count}")
-    with col3:
+    with metric_cols[2]:
         st.metric("分型数量", f"{fx_count}")
-    with col4:
+    with metric_cols[3]:
         st.metric("最新收盘价", f"{last_close:.2f}", delta=f"{change_pct:+.2f}%")
+
+    if show_zs or show_bc:
+        extra_cols = st.columns(2)
+        col_idx = 0
+        if show_zs:
+            with extra_cols[col_idx]:
+                st.metric("中枢数量", f"{zs_count}")
+            col_idx += 1
+        if show_bc:
+            with extra_cols[col_idx]:
+                st.metric("背驰点数量", f"{len(bc_data)}")
 
     st.markdown("---")
 
@@ -230,6 +314,8 @@ def main():
             fx=fx_data,
             bi=bi_data,
             bs=bs_data,
+            zs=zs_data if show_zs else None,
+            bc=bc_data if show_bc else None,
             title=f"{symbol} 缠论K线分析（{data_source}）",
             t_seq=ma_periods,
             use_streamlit=True,

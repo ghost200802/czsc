@@ -163,19 +163,21 @@ class TestRunCzscAnalysis:
         from scripts.stockviewer.app import run_czsc_analysis
 
         raw_bars = self._make_raw_bars(200)
-        kline_data, fx_data, bi_data, bi_count, fx_count = run_czsc_analysis(raw_bars)
+        kline_data, fx_data, bi_data, zs_data, bi_count, fx_count, zs_count = run_czsc_analysis(raw_bars)
 
         assert len(kline_data) == 200
         assert bi_count >= 0
         assert fx_count >= 0
+        assert zs_count >= 0
         assert isinstance(bi_data, list)
         assert isinstance(fx_data, list)
+        assert isinstance(zs_data, list)
 
     def test_kline_data_structure(self):
         from scripts.stockviewer.app import run_czsc_analysis
 
         raw_bars = self._make_raw_bars(50)
-        kline_data, _, _, _, _ = run_czsc_analysis(raw_bars)
+        kline_data, _, _, _, _, _, _ = run_czsc_analysis(raw_bars)
 
         for item in kline_data:
             assert "dt" in item
@@ -189,7 +191,7 @@ class TestRunCzscAnalysis:
         from scripts.stockviewer.app import run_czsc_analysis
 
         raw_bars = self._make_raw_bars(200)
-        _, fx_data, _, _, _ = run_czsc_analysis(raw_bars)
+        _, fx_data, _, _, _, _, _ = run_czsc_analysis(raw_bars)
 
         for item in fx_data:
             assert "dt" in item
@@ -199,11 +201,49 @@ class TestRunCzscAnalysis:
         from scripts.stockviewer.app import run_czsc_analysis
 
         raw_bars = self._make_raw_bars(200)
-        _, _, bi_data, _, _ = run_czsc_analysis(raw_bars)
+        _, _, bi_data, _, _, _, _ = run_czsc_analysis(raw_bars)
 
         for item in bi_data:
             assert "dt" in item
             assert "bi" in item
+
+    def test_zs_data_structure(self):
+        from scripts.stockviewer.app import run_czsc_analysis
+
+        raw_bars = self._make_raw_bars(200)
+        _, _, _, zs_data, _, _, _ = run_czsc_analysis(raw_bars)
+
+        for item in zs_data:
+            assert "sdt" in item
+            assert "edt" in item
+            assert "zg" in item
+            assert "zd" in item
+            assert "direction" in item
+
+    def test_zs_data_produced_with_sufficient_data(self):
+        from scripts.stockviewer.app import run_czsc_analysis
+
+        raw_bars = self._make_raw_bars(500)
+        _, _, _, zs_data, _, _, zs_count = run_czsc_analysis(raw_bars)
+
+        assert zs_count > 0, "500根K线应产生至少1个有效中枢"
+        assert len(zs_data) == zs_count
+        for item in zs_data:
+            assert item["zg"] > item["zd"], f"中枢上沿应大于下沿: zg={item['zg']}, zd={item['zd']}"
+            assert item["sdt"] <= item["edt"], f"中枢开始时间应早于结束时间"
+            assert item["direction"] in ("向上", "向下")
+            assert "bi_count" in item
+            assert item["bi_count"] >= 1
+
+    def test_zs_data_consistency_with_bi_list(self):
+        from scripts.stockviewer.app import run_czsc_analysis
+
+        raw_bars = self._make_raw_bars(500)
+        _, _, _, zs_data, bi_count, _, zs_count = run_czsc_analysis(raw_bars)
+
+        assert bi_count > 0, "500根K线应产生笔"
+        if bi_count >= 3:
+            assert zs_count > 0, f"有{bi_count}笔时应产生至少1个有效中枢"
 
 
 class TestDictsToRawBars:
@@ -249,13 +289,15 @@ class TestDictsToRawBars:
             d["freq"] = f.value if hasattr(f, "value") else str(f)
 
         reconstructed_bars = _dicts_to_raw_bars(dicts)
-        kline_data, fx_data, bi_data, bi_count, fx_count = run_czsc_analysis(reconstructed_bars)
+        kline_data, fx_data, bi_data, zs_data, bi_count, fx_count, zs_count = run_czsc_analysis(reconstructed_bars)
 
         assert len(kline_data) == 200
         assert bi_count >= 0
         assert fx_count >= 0
+        assert zs_count >= 0
         assert isinstance(fx_data, list)
         assert isinstance(bi_data, list)
+        assert isinstance(zs_data, list)
 
 
 class TestBSStrategies:
@@ -490,3 +532,153 @@ class TestComputeBsPoints:
             assert "op_desc" in item
             assert isinstance(item["op"], Operate)
             assert isinstance(item["op_desc"], str)
+
+
+class TestComputeBcMarkers:
+    def _make_raw_bars(self, n=200):
+        df = generate_symbol_kines("000001", "日线", "20220101", "20250101", seed=42)
+        return format_standard_kline(df, freq=Freq.D)[:n]
+
+    def test_empty_bi_list(self):
+        from scripts.stockviewer.app import compute_bc_markers
+
+        assert compute_bc_markers([]) == []
+
+    def test_short_bi_list(self):
+        from scripts.stockviewer.app import compute_bc_markers
+
+        raw_bars = self._make_raw_bars(50)
+        czsc_obj = CZSC(raw_bars, max_bi_num=10000)
+        result = compute_bc_markers(czsc_obj.bi_list)
+        assert isinstance(result, list)
+
+    def test_bc_markers_structure(self):
+        from scripts.stockviewer.app import compute_bc_markers
+
+        raw_bars = self._make_raw_bars(200)
+        czsc_obj = CZSC(raw_bars, max_bi_num=10000)
+        result = compute_bc_markers(czsc_obj.bi_list)
+        for item in result:
+            assert "dt" in item
+            assert "price" in item
+            assert "bc_type" in item
+            assert item["bc_type"] in ("下跌背驰", "上涨背驰")
+
+    def test_bc_markers_with_real_data(self):
+        from scripts.stockviewer.app import compute_bc_markers
+
+        raw_bars = self._make_raw_bars(500)
+        czsc_obj = CZSC(raw_bars, max_bi_num=10000)
+        result = compute_bc_markers(czsc_obj.bi_list)
+        assert isinstance(result, list)
+
+    def test_bc_markers_produced_with_sufficient_data(self):
+        from scripts.stockviewer.app import compute_bc_markers
+
+        raw_bars = self._make_raw_bars(500)
+        czsc_obj = CZSC(raw_bars, max_bi_num=10000)
+        result = compute_bc_markers(czsc_obj.bi_list)
+
+        assert len(result) > 0, "500根K线产生的笔中应检测到背驰"
+        for item in result:
+            assert "dt" in item
+            assert "price" in item
+            assert "bc_type" in item
+            assert item["bc_type"] in ("下跌背驰", "上涨背驰")
+            assert isinstance(item["price"], (int, float))
+            assert item["price"] > 0
+
+    def test_bc_markers_divergence_logic(self):
+        from scripts.stockviewer.app import compute_bc_markers
+
+        raw_bars = self._make_raw_bars(500)
+        czsc_obj = CZSC(raw_bars, max_bi_num=10000)
+        bi_list = czsc_obj.bi_list
+
+        result = compute_bc_markers(bi_list)
+
+        down_bc = [r for r in result if r["bc_type"] == "下跌背驰"]
+        up_bc = [r for r in result if r["bc_type"] == "上涨背驰"]
+
+        for item in down_bc:
+            bi_idx = next(i for i, bi in enumerate(bi_list) if bi.fx_b.dt == item["dt"])
+            assert bi_list[bi_idx].direction.value == "向下"
+
+        for item in up_bc:
+            bi_idx = next(i for i, bi in enumerate(bi_list) if bi.fx_b.dt == item["dt"])
+            assert bi_list[bi_idx].direction.value == "向上"
+
+    def test_bc_markers_both_types(self):
+        from scripts.stockviewer.app import compute_bc_markers
+
+        raw_bars = self._make_raw_bars(500)
+        czsc_obj = CZSC(raw_bars, max_bi_num=10000)
+        result = compute_bc_markers(czsc_obj.bi_list)
+
+        types = set(r["bc_type"] for r in result)
+        assert "下跌背驰" in types or "上涨背驰" in types, "应检测到至少一种背驰类型"
+
+
+class TestZsAndBcIntegration:
+    def _make_raw_bars(self, n=500):
+        df = generate_symbol_kines("000001", "日线", "20220101", "20250101", seed=42)
+        return format_standard_kline(df, freq=Freq.D)[:n]
+
+    def test_chart_creation_with_zs_and_bc(self):
+        from scripts.stockviewer.app import compute_bc_markers, run_czsc_analysis
+        from czsc.utils.echarts_plot import trading_view_kline
+
+        raw_bars = self._make_raw_bars(500)
+        kline_data, fx_data, bi_data, zs_data, bi_count, fx_count, zs_count = run_czsc_analysis(raw_bars)
+        czsc_obj = CZSC(raw_bars, max_bi_num=10000)
+        bc_data = compute_bc_markers(czsc_obj.bi_list)
+
+        assert zs_count > 0, "应有有效中枢"
+        assert len(bc_data) > 0, "应有背驰标记"
+
+        chart = trading_view_kline(
+            kline=kline_data,
+            fx=fx_data,
+            bi=bi_data,
+            zs=zs_data,
+            bc=bc_data,
+            title="Test ZS and BC",
+            t_seq=[5, 10, 20],
+        )
+        assert chart is not None
+
+    def test_chart_creation_without_zs_bc(self):
+        from scripts.stockviewer.app import run_czsc_analysis
+        from czsc.utils.echarts_plot import trading_view_kline
+
+        raw_bars = self._make_raw_bars(500)
+        kline_data, fx_data, bi_data, _, _, _, _ = run_czsc_analysis(raw_bars)
+
+        chart = trading_view_kline(
+            kline=kline_data,
+            fx=fx_data,
+            bi=bi_data,
+            zs=None,
+            bc=None,
+            title="Test Without ZS BC",
+            t_seq=[5, 10, 20],
+        )
+        assert chart is not None
+
+    def test_chart_creation_with_empty_zs_bc(self):
+        from scripts.stockviewer.app import run_czsc_analysis
+        from czsc.utils.echarts_plot import trading_view_kline
+
+        raw_bars = self._make_raw_bars(500)
+        kline_data, fx_data, bi_data, _, _, _, _ = run_czsc_analysis(raw_bars)
+
+        chart = trading_view_kline(
+            kline=kline_data,
+            fx=fx_data,
+            bi=bi_data,
+            zs=[],
+            bc=[],
+            title="Test Empty ZS BC",
+            t_seq=[5, 10, 20],
+        )
+        assert chart is not None

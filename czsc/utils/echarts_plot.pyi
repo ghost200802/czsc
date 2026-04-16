@@ -25,6 +25,8 @@ def trading_view_kline(
     bi: list[dict] | None = None,
     xd: list[dict] | None = None,
     bs: list[dict] | None = None,
+    zs: list[dict] | None = None,
+    bc: list[dict] | None = None,
     title: str = "缠中说禅K线分析",
     t_seq: list[int] | None = None,
     **kwargs,
