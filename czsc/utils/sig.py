@@ -10,7 +10,10 @@ from typing import Any
 
 import numpy as np
 
-from czsc.py.enum import Direction
+try:
+    from czsc.core import Direction
+except ImportError:
+    from czsc.py.enum import Direction
 from czsc.py.objects import BI, ZS, RawBar
 
 
