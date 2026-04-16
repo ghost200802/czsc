@@ -118,7 +118,7 @@ def run_czsc_analysis(raw_bars):
 def compute_bc_markers(bi_list):
     """基于笔力度比较计算背驰标记
 
-    :param bi_list: CZSC对象的bi_list
+    :param bi_list: CZSC对象的finished_bis，只包含已确认完成的笔，避免末笔未稳定导致假背驰信号
     :return: 背驰标记列表 [{"dt": datetime, "price": float, "bc_type": str}, ...]
     """
     try:
@@ -263,7 +263,7 @@ def main():
     if show_bc:
         try:
             czsc_obj = CZSC(raw_bars, max_bi_num=10000)
-            bc_data = compute_bc_markers(czsc_obj.bi_list)
+            bc_data = compute_bc_markers(czsc_obj.finished_bis)
         except Exception as e:
             st.warning(f"背驰标记计算失败: {e}")
 

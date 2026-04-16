@@ -72,6 +72,7 @@ def remove_include(k1: NewBar, k2: NewBar, k3: RawBar):
 
         open_, close = (high, low) if k3.open > k3.close else (low, high)
         amount = k2.amount + k3.amount
+        vol = k2.vol + k3.vol
 
         # 这里有一个隐藏Bug，len(k2.elements) 在一些及其特殊的场景下会有超大的数量，具体问题还没找到；
         # 临时解决方案是直接限定len(k2.elements)<=100

@@ -94,12 +94,12 @@ class Test688110ZS:
 class Test688110BC:
     def test_bc_count_positive(self, raw_bars):
         czsc_obj = CZSC(raw_bars, max_bi_num=10000)
-        bc_data = compute_bc_markers(czsc_obj.bi_list)
+        bc_data = compute_bc_markers(czsc_obj.finished_bis)
         assert len(bc_data) > 0, f"688110 在 {SDT}~{EDT} 区间应检测到背驰点，实际: {len(bc_data)}"
 
     def test_bc_data_structure(self, raw_bars):
         czsc_obj = CZSC(raw_bars, max_bi_num=10000)
-        bc_data = compute_bc_markers(czsc_obj.bi_list)
+        bc_data = compute_bc_markers(czsc_obj.finished_bis)
         for bc in bc_data:
             assert "dt" in bc
             assert "price" in bc
@@ -110,13 +110,13 @@ class Test688110BC:
 
     def test_bc_both_types(self, raw_bars):
         czsc_obj = CZSC(raw_bars, max_bi_num=10000)
-        bc_data = compute_bc_markers(czsc_obj.bi_list)
+        bc_data = compute_bc_markers(czsc_obj.finished_bis)
         types = {bc["bc_type"] for bc in bc_data}
         assert "下跌背驰" in types or "上涨背驰" in types, "应检测到至少一种背驰类型"
 
     def test_bc_direction_consistency(self, raw_bars):
         czsc_obj = CZSC(raw_bars, max_bi_num=10000)
-        bc_data = compute_bc_markers(czsc_obj.bi_list)
+        bc_data = compute_bc_markers(czsc_obj.finished_bis)
         bi_list = czsc_obj.bi_list
 
         for bc in bc_data:

@@ -549,7 +549,7 @@ class TestComputeBcMarkers:
 
         raw_bars = self._make_raw_bars(50)
         czsc_obj = CZSC(raw_bars, max_bi_num=10000)
-        result = compute_bc_markers(czsc_obj.bi_list)
+        result = compute_bc_markers(czsc_obj.finished_bis)
         assert isinstance(result, list)
 
     def test_bc_markers_structure(self):
@@ -557,7 +557,7 @@ class TestComputeBcMarkers:
 
         raw_bars = self._make_raw_bars(200)
         czsc_obj = CZSC(raw_bars, max_bi_num=10000)
-        result = compute_bc_markers(czsc_obj.bi_list)
+        result = compute_bc_markers(czsc_obj.finished_bis)
         for item in result:
             assert "dt" in item
             assert "price" in item
@@ -569,7 +569,7 @@ class TestComputeBcMarkers:
 
         raw_bars = self._make_raw_bars(500)
         czsc_obj = CZSC(raw_bars, max_bi_num=10000)
-        result = compute_bc_markers(czsc_obj.bi_list)
+        result = compute_bc_markers(czsc_obj.finished_bis)
         assert isinstance(result, list)
 
     def test_bc_markers_produced_with_sufficient_data(self):
@@ -577,7 +577,7 @@ class TestComputeBcMarkers:
 
         raw_bars = self._make_raw_bars(500)
         czsc_obj = CZSC(raw_bars, max_bi_num=10000)
-        result = compute_bc_markers(czsc_obj.bi_list)
+        result = compute_bc_markers(czsc_obj.finished_bis)
 
         assert len(result) > 0, "500根K线产生的笔中应检测到背驰"
         for item in result:
@@ -595,7 +595,7 @@ class TestComputeBcMarkers:
         czsc_obj = CZSC(raw_bars, max_bi_num=10000)
         bi_list = czsc_obj.bi_list
 
-        result = compute_bc_markers(bi_list)
+        result = compute_bc_markers(czsc_obj.finished_bis)
 
         down_bc = [r for r in result if r["bc_type"] == "下跌背驰"]
         up_bc = [r for r in result if r["bc_type"] == "上涨背驰"]
@@ -613,7 +613,7 @@ class TestComputeBcMarkers:
 
         raw_bars = self._make_raw_bars(500)
         czsc_obj = CZSC(raw_bars, max_bi_num=10000)
-        result = compute_bc_markers(czsc_obj.bi_list)
+        result = compute_bc_markers(czsc_obj.finished_bis)
 
         types = set(r["bc_type"] for r in result)
         assert "下跌背驰" in types or "上涨背驰" in types, "应检测到至少一种背驰类型"
@@ -631,7 +631,7 @@ class TestZsAndBcIntegration:
         raw_bars = self._make_raw_bars(500)
         kline_data, fx_data, bi_data, zs_data, bi_count, fx_count, zs_count = run_czsc_analysis(raw_bars)
         czsc_obj = CZSC(raw_bars, max_bi_num=10000)
-        bc_data = compute_bc_markers(czsc_obj.bi_list)
+        bc_data = compute_bc_markers(czsc_obj.finished_bis)
 
         assert zs_count > 0, "应有有效中枢"
         assert len(bc_data) > 0, "应有背驰标记"
