@@ -466,6 +466,15 @@ def _prepare_kline_data(kline: list[dict], use_streamlit=False, width=1400, heig
     # 创建主图表（延迟导入，避免在模块加载时引入 streamlit 等重型依赖）
     if use_streamlit:
         import builtins as _bi
+        import sys
+        import types
+
+        if "webview" not in sys.modules:
+            _webview_stub = types.ModuleType("webview")
+            _webview_stub.errors = types.ModuleType("webview.errors")
+            _webview_stub.errors.JavascriptException = Exception
+            sys.modules["webview"] = _webview_stub
+            sys.modules["webview.errors"] = _webview_stub.errors
 
         _orig_open = _bi.open
 
