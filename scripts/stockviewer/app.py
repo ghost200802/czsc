@@ -121,7 +121,10 @@ def compute_bc_markers(bi_list):
     :param bi_list: CZSC对象的bi_list
     :return: 背驰标记列表 [{"dt": datetime, "price": float, "bc_type": str}, ...]
     """
-    from czsc.py.enum import Direction
+    try:
+        from czsc.core import Direction
+    except ImportError:
+        from czsc.py.enum import Direction
 
     bc_data = []
     if len(bi_list) < 5:
