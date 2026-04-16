@@ -6,6 +6,7 @@ import pytest
 from czsc.connectors.bs_connector import _freq_to_bs, _fq_to_bs, _to_bs_code
 from czsc.core import CZSC, Freq, RawBar, format_standard_kline
 from czsc.mock import generate_symbol_kines
+from czsc.py.enum import Operate
 
 
 class TestFreqToBs:
@@ -255,3 +256,195 @@ class TestDictsToRawBars:
         assert fx_count >= 0
         assert isinstance(fx_data, list)
         assert isinstance(bi_data, list)
+
+
+class TestBSStrategies:
+    def test_get_available_strategies(self):
+        from scripts.stockviewer.bs_strategies import get_available_strategies
+
+        strategies = get_available_strategies()
+        assert len(strategies) == 4
+        names = [s.name for s in strategies]
+        assert "一买一卖" in names
+        assert "二类买卖点" in names
+        assert "三类买卖点" in names
+        assert "MACD 买卖点" in names
+
+    def test_strategy_has_required_fields(self):
+        from scripts.stockviewer.bs_strategies import get_available_strategies
+
+        for strategy in get_available_strategies():
+            assert strategy.name
+            assert strategy.description
+            assert len(strategy.signals_config_template) > 0
+            assert len(strategy.key_patterns) > 0
+
+    def test_strategy_get_signals_config_replaces_freq(self):
+        from scripts.stockviewer.bs_strategies import get_available_strategies
+
+        for strategy in get_available_strategies():
+            config = strategy.get_signals_config("日线")
+            for sc in config:
+                assert sc["freq"] == "日线"
+                assert "{freq}" not in sc["freq"]
+
+    def test_strategy_get_signals_config_different_freq(self):
+        from scripts.stockviewer.bs_strategies import get_available_strategies
+
+        for strategy in get_available_strategies():
+            for freq_str in ["周线", "月线"]:
+                config = strategy.get_signals_config(freq_str)
+                for sc in config:
+                    assert sc["freq"] == freq_str
+
+
+class TestComputeBsPoints:
+    def _make_raw_bars(self, n=200):
+        df = generate_symbol_kines("000001", "日线", "20220101", "20250101", seed=42)
+        return format_standard_kline(df, freq=Freq.D)[:n]
+
+    def test_empty_selection(self):
+        from scripts.stockviewer.bs_strategies import compute_bs_points
+
+        raw_bars = self._make_raw_bars(200)
+        bs = compute_bs_points(raw_bars, [], "20240101", "日线")
+        assert bs == []
+
+    def test_empty_raw_bars(self):
+        from scripts.stockviewer.bs_strategies import compute_bs_points
+
+        bs = compute_bs_points([], ["一买一卖"], "20240101", "日线")
+        assert bs == []
+
+    def test_no_signals_found(self):
+        from scripts.stockviewer.bs_strategies import compute_bs_points
+
+        raw_bars = self._make_raw_bars(200)
+        mock_sigs = [
+            {"dt": datetime(2024, 3, 15), "close": 15.5, "日线_D1B_BUY1": "其他_任意_任意_0"},
+            {"dt": datetime(2024, 4, 10), "close": 17.8, "日线_D1B_BUY1": "其他_任意_任意_0"},
+        ]
+        with patch("scripts.stockviewer.bs_strategies.generate_czsc_signals", return_value=mock_sigs):
+            bs = compute_bs_points(raw_bars, ["一买一卖"], "20240101", "日线")
+        assert bs == []
+
+    def test_buy_signals_detected(self):
+        from scripts.stockviewer.bs_strategies import compute_bs_points
+
+        raw_bars = self._make_raw_bars(200)
+        mock_sigs = [
+            {
+                "dt": datetime(2024, 3, 15),
+                "close": 15.5,
+                "日线_D1B_BUY1": "一买_5笔_任意_0",
+                "日线_D1B_SELL1": "其他_任意_任意_0",
+            },
+        ]
+        with patch("scripts.stockviewer.bs_strategies.generate_czsc_signals", return_value=mock_sigs):
+            bs = compute_bs_points(raw_bars, ["一买一卖"], "20240101", "日线")
+        assert len(bs) == 1
+        assert bs[0]["op"] == Operate.LO
+        assert bs[0]["op_desc"] == "一买"
+        assert bs[0]["price"] == 15.5
+        assert bs[0]["dt"] == datetime(2024, 3, 15)
+
+    def test_sell_signals_detected(self):
+        from scripts.stockviewer.bs_strategies import compute_bs_points
+
+        raw_bars = self._make_raw_bars(200)
+        mock_sigs = [
+            {
+                "dt": datetime(2024, 4, 10),
+                "close": 17.8,
+                "日线_D1B_BUY1": "其他_任意_任意_0",
+                "日线_D1B_SELL1": "一卖_7笔_任意_0",
+            },
+        ]
+        with patch("scripts.stockviewer.bs_strategies.generate_czsc_signals", return_value=mock_sigs):
+            bs = compute_bs_points(raw_bars, ["一买一卖"], "20240101", "日线")
+        assert len(bs) == 1
+        assert bs[0]["op"] == Operate.LE
+        assert bs[0]["op_desc"] == "一卖"
+
+    def test_multiple_signals_across_strategies(self):
+        from scripts.stockviewer.bs_strategies import compute_bs_points
+
+        raw_bars = self._make_raw_bars(200)
+        mock_sigs = [
+            {
+                "dt": datetime(2024, 3, 15),
+                "close": 15.5,
+                "日线_D1B_BUY1": "一买_5笔_任意_0",
+                "日线_D1B_SELL1": "其他_任意_任意_0",
+                "日线_D1#SMA#21_BS2辅助V230320": "二买_任意_任意_0",
+            },
+            {
+                "dt": datetime(2024, 4, 10),
+                "close": 17.8,
+                "日线_D1B_BUY1": "其他_任意_任意_0",
+                "日线_D1B_SELL1": "一卖_7笔_任意_0",
+                "日线_D1#SMA#21_BS2辅助V230320": "其他_任意_任意_0",
+            },
+        ]
+        with patch("scripts.stockviewer.bs_strategies.generate_czsc_signals", return_value=mock_sigs):
+            bs = compute_bs_points(raw_bars, ["一买一卖", "二类买卖点"], "20240101", "日线")
+        assert len(bs) == 3
+        ops = [(b["op"], b["op_desc"]) for b in bs]
+        assert (Operate.LO, "一买") in ops
+        assert (Operate.LE, "一卖") in ops
+        assert (Operate.LO, "二买") in ops
+
+    def test_third_bs_signals(self):
+        from scripts.stockviewer.bs_strategies import compute_bs_points
+
+        raw_bars = self._make_raw_bars(200)
+        mock_sigs = [
+            {
+                "dt": datetime(2024, 5, 1),
+                "close": 18.0,
+                "日线_D1#SMA#34_BS3辅助V230319": "三买_均线新高_任意_0",
+            },
+        ]
+        with patch("scripts.stockviewer.bs_strategies.generate_czsc_signals", return_value=mock_sigs):
+            bs = compute_bs_points(raw_bars, ["三类买卖点"], "20240101", "日线")
+        assert len(bs) == 1
+        assert bs[0]["op"] == Operate.LO
+        assert bs[0]["op_desc"] == "三买"
+
+    def test_macd_signals(self):
+        from scripts.stockviewer.bs_strategies import compute_bs_points
+
+        raw_bars = self._make_raw_bars(200)
+        mock_sigs = [
+            {
+                "dt": datetime(2024, 5, 1),
+                "close": 18.0,
+                "日线_D1MACD12#26#9_BS1辅助V221201": "一买_任意_任意_0",
+            },
+        ]
+        with patch("scripts.stockviewer.bs_strategies.generate_czsc_signals", return_value=mock_sigs):
+            bs = compute_bs_points(raw_bars, ["MACD 买卖点"], "20240101", "日线")
+        assert len(bs) == 1
+        assert bs[0]["op"] == Operate.LO
+        assert bs[0]["op_desc"] == "一买"
+
+    def test_bs_format_for_chart(self):
+        from scripts.stockviewer.bs_strategies import compute_bs_points
+
+        raw_bars = self._make_raw_bars(200)
+        mock_sigs = [
+            {
+                "dt": datetime(2024, 3, 15),
+                "close": 15.5,
+                "日线_D1B_BUY1": "一买_5笔_任意_0",
+            },
+        ]
+        with patch("scripts.stockviewer.bs_strategies.generate_czsc_signals", return_value=mock_sigs):
+            bs = compute_bs_points(raw_bars, ["一买一卖"], "20240101", "日线")
+        for item in bs:
+            assert "dt" in item
+            assert "price" in item
+            assert "op" in item
+            assert "op_desc" in item
+            assert isinstance(item["op"], Operate)
+            assert isinstance(item["op_desc"], str)

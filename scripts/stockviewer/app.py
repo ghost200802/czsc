@@ -15,6 +15,8 @@ from czsc.connectors import bs_connector, ts_connector
 from czsc.core import CZSC, Freq, RawBar
 from czsc.utils.echarts_plot import trading_view_kline
 
+from scripts.stockviewer.bs_strategies import compute_bs_points, get_available_strategies
+
 TUSHARE_URL = "http://api.tushare.pro"
 
 
@@ -120,12 +122,28 @@ def main():
         ma_periods = [5, 10, 20]
 
     st.sidebar.markdown("---")
+    available_strategies = get_available_strategies()
+    strategy_names = [s.name for s in available_strategies]
+    strategy_descriptions = {s.name: s.description for s in available_strategies}
+    selected_strategies = st.sidebar.multiselect(
+        "买卖点策略",
+        options=strategy_names,
+        default=[],
+        help="选择要显示的买卖点策略，可多选",
+    )
+    if selected_strategies:
+        st.sidebar.caption("**已选策略：**")
+        for name in selected_strategies:
+            st.sidebar.caption(f"  • {name}：{strategy_descriptions[name]}")
+
+    st.sidebar.markdown("---")
     st.sidebar.info("""
     本页面展示股票K线与 CZSC 缠论分析结果：
     - **K线**：蜡烛图 + MA均线
     - **分型**：顶分型/底分型标记
     - **笔**：缠论笔的连线
     - **MACD**：副图指标
+    - **买卖点**：选中策略后在图表上标记
     """)
 
     token = _read_tushare_token()
@@ -171,6 +189,13 @@ def main():
         st.error(f"CZSC 缠论分析失败: {e}")
         return
 
+    bs_data = []
+    if selected_strategies:
+        try:
+            bs_data = compute_bs_points(raw_bars, selected_strategies, start_date, freq)
+        except Exception as e:
+            st.warning(f"买卖点计算失败: {e}")
+
     last_close = bar_dicts[-1]["close"]
     first_close = bar_dicts[0]["close"]
     change_pct = (last_close - first_close) / first_close * 100
@@ -192,7 +217,7 @@ def main():
             kline=kline_data,
             fx=fx_data,
             bi=bi_data,
-            bs=[],
+            bs=bs_data,
             title=f"{symbol} 缠论K线分析（{data_source}）",
             t_seq=ma_periods,
             use_streamlit=True,

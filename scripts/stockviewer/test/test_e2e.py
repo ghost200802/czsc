@@ -67,3 +67,29 @@ class TestStreamlitApp:
         pg, _ = browser_page
         metrics = pg.locator("[data-testid='stMetricValue']")
         assert metrics.count() >= 3, f"Expected at least 3 metrics, found {metrics.count()}"
+
+
+class TestBSMultiselect:
+    def test_multiselect_exists(self, browser_page):
+        pg, _ = browser_page
+        multiselect = pg.locator("[data-testid='stMultiSelect']")
+        expect(multiselect.first).to_be_visible(timeout=30000)
+
+    def test_multiselect_label(self, browser_page):
+        pg, _ = browser_page
+        label = pg.locator("[data-testid='stMultiSelect'] p").first
+        expect(label).to_have_text("买卖点策略", timeout=30000)
+
+    def test_multiselect_default_empty(self, browser_page):
+        pg, _ = browser_page
+        tags = pg.locator("[data-testid='stMultiSelect'] span[data-testid='stTag']")
+        expect(tags).to_have_count(0, timeout=10000)
+
+    def test_multiselect_has_options(self, browser_page):
+        pg, _ = browser_page
+        multiselect = pg.locator("[data-testid='stMultiSelect']").first
+        multiselect.click()
+        pg.wait_for_timeout(1000)
+        options = pg.locator("[data-testid='stMultiSelectOption']")
+        count = options.count()
+        assert count >= 4, f"Expected at least 4 strategy options, found {count}"
