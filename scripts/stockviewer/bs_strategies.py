@@ -108,29 +108,26 @@ def compute_bs_points(raw_bars, selected_strategy_names, sdt, freq_str):
     sigs = generate_czsc_signals(raw_bars, deduped_config, sdt=sdt, df=False)
 
     bs = []
+    last_valid = {}
     for sig in sigs:
         for key_contains, buy_v1, sell_v1 in key_patterns:
             for sig_key, sig_value in sig.items():
                 if key_contains in sig_key and isinstance(sig_value, str):
                     parts = sig_value.split("_")
                     v1 = parts[0] if parts else ""
-                    if buy_v1 and v1 == buy_v1:
-                        bs.append(
-                            {
-                                "dt": sig["dt"],
-                                "price": sig["close"],
-                                "op": Operate.LO,
-                                "op_desc": v1,
-                            }
-                        )
-                    elif sell_v1 and v1 == sell_v1:
-                        bs.append(
-                            {
-                                "dt": sig["dt"],
-                                "price": sig["close"],
-                                "op": Operate.LE,
-                                "op_desc": v1,
-                            }
-                        )
+                    if (buy_v1 and v1 == buy_v1) or (sell_v1 and v1 == sell_v1):
+                        if last_valid.get(sig_key) != v1:
+                            last_valid[sig_key] = v1
+                            op = Operate.LO if (buy_v1 and v1 == buy_v1) else Operate.LE
+                            bs.append(
+                                {
+                                    "dt": sig["dt"],
+                                    "price": sig["close"],
+                                    "op": op,
+                                    "op_desc": v1,
+                                }
+                            )
+                    else:
+                        last_valid.pop(sig_key, None)
 
     return bs

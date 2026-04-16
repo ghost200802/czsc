@@ -6,7 +6,7 @@
 """
 
 import hashlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import streamlit as st
@@ -68,6 +68,8 @@ def fetch_stock_data(symbol, freq, sdt, edt, fq, _token_available):
             raw_bars = ts_connector.get_raw_bars(ts_symbol, freq, sdt, edt, fq=fq)
             if raw_bars:
                 return _raw_bars_to_dicts(raw_bars), "Tushare", ""
+            else:
+                errors.append("Tushare: 未返回数据（可能是 Token 无效、积分不足或请求频率超限）")
         except Exception as e:
             errors.append(f"Tushare: {e}")
 
@@ -192,7 +194,17 @@ def main():
     bs_data = []
     if selected_strategies:
         try:
-            bs_data = compute_bs_points(raw_bars, selected_strategies, start_date, freq)
+            _FREQ_EXTRA_DAYS = {"日线": 1100, "周线": 4400, "月线": 16436}
+            _extra_days = _FREQ_EXTRA_DAYS.get(freq, 1100)
+            _extended_sdt_dt = datetime.strptime(start_date, "%Y%m%d") - timedelta(days=_extra_days)
+            _extended_sdt_dt = max(_extended_sdt_dt, datetime(1990, 1, 1))
+            _extended_sdt = _extended_sdt_dt.strftime("%Y%m%d")
+            _ext_bar_dicts, _, _ = fetch_stock_data(symbol, freq, _extended_sdt, end_date, fq, token_available)
+            if _ext_bar_dicts:
+                _ext_raw_bars = _dicts_to_raw_bars(_ext_bar_dicts)
+                bs_data = compute_bs_points(_ext_raw_bars, selected_strategies, start_date, freq)
+            else:
+                bs_data = compute_bs_points(raw_bars, selected_strategies, start_date, freq)
         except Exception as e:
             st.warning(f"买卖点计算失败: {e}")
 

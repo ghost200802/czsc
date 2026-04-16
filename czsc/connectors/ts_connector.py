@@ -28,6 +28,9 @@ def format_kline(kline: pd.DataFrame, freq: Freq) -> list[RawBar]:
     :param freq: K线周期
     :return: 转换好的K线数据
     """
+    if kline is None or (isinstance(kline, pd.DataFrame) and kline.empty):
+        return []
+
     bars = []
     dt_key = "trade_time" if "分钟" in freq.value else "trade_date"
     kline = kline.sort_values(dt_key, ascending=True, ignore_index=True)

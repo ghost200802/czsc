@@ -428,6 +428,48 @@ class TestComputeBsPoints:
         assert bs[0]["op"] == Operate.LO
         assert bs[0]["op_desc"] == "一买"
 
+    def test_consecutive_signals_deduped(self):
+        from scripts.stockviewer.bs_strategies import compute_bs_points
+
+        raw_bars = self._make_raw_bars(200)
+        mock_sigs = [
+            {
+                "dt": datetime(2024, 3, 10),
+                "close": 14.0,
+                "日线_D1B_BUY1": "其他_任意_任意_0",
+            },
+            {
+                "dt": datetime(2024, 3, 15),
+                "close": 15.5,
+                "日线_D1B_BUY1": "一买_5笔_任意_0",
+            },
+            {
+                "dt": datetime(2024, 3, 16),
+                "close": 15.6,
+                "日线_D1B_BUY1": "一买_5笔_任意_0",
+            },
+            {
+                "dt": datetime(2024, 3, 17),
+                "close": 15.7,
+                "日线_D1B_BUY1": "一买_5笔_任意_0",
+            },
+            {
+                "dt": datetime(2024, 3, 18),
+                "close": 15.8,
+                "日线_D1B_BUY1": "其他_任意_任意_0",
+            },
+            {
+                "dt": datetime(2024, 3, 20),
+                "close": 16.0,
+                "日线_D1B_BUY1": "一买_5笔_任意_0",
+            },
+        ]
+        with patch("scripts.stockviewer.bs_strategies.generate_czsc_signals", return_value=mock_sigs):
+            bs = compute_bs_points(raw_bars, ["一买一卖"], "20240101", "日线")
+        assert len(bs) == 2
+        assert bs[0]["dt"] == datetime(2024, 3, 15)
+        assert bs[1]["dt"] == datetime(2024, 3, 20)
+
     def test_bs_format_for_chart(self):
         from scripts.stockviewer.bs_strategies import compute_bs_points
 
