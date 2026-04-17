@@ -497,6 +497,9 @@ def _prepare_kline_data(kline: list[dict], use_streamlit=False, width=1400, heig
         logger.info("使用 Chart")
         chart = Chart()
 
+    chart.candle_style(up_color='#ef5350', down_color='#26a69a')
+    chart.volume_config(up_color='rgba(239, 83, 80, 0.5)', down_color='rgba(38, 166, 154, 0.5)')
+
     df = pd.DataFrame(df_data)
     chart.set(df)
 
@@ -684,7 +687,7 @@ def _add_macd_indicator(chart: "Chart", kline: list[dict], df_data: list[dict]) 
             dea_line_data.append({"time": time_value, "value": dea_val})
 
             histogram_data.append(
-                {"time": time_value, "value": macd_val, "color": "#26a69a" if macd_val >= 0 else "#ef5350"}
+                {"time": time_value, "value": macd_val, "color": "#ef5350" if macd_val >= 0 else "#26a69a"}
             )
 
         logger.info(
@@ -767,7 +770,7 @@ def _add_trade_signals(chart: "Chart", bs: list[dict]) -> None:
                     time=marker_time,
                     position="below",
                     shape="circle",
-                    color="#4CAF50",
+                    color="#F44336",
                     text=signal.get("op_desc", "买入"),
                 )
             elif signal["op"] in [Operate.LE]:  # 卖出平仓
@@ -775,7 +778,7 @@ def _add_trade_signals(chart: "Chart", bs: list[dict]) -> None:
                     time=marker_time,
                     position="above",
                     shape="circle",
-                    color="#F44336",
+                    color="#4CAF50",
                     text=signal.get("op_desc", "卖出"),
                 )
             elif signal["op"] in [Operate.SO]:  # 卖出开仓

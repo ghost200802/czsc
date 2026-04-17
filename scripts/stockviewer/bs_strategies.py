@@ -79,6 +79,54 @@ _STRATEGIES: list[BSStrategy] = [
         ],
         key_patterns=[("BS1辅助V221201", "一买", "一卖")],
     ),
+    BSStrategy(
+        name="MACD 二次背驰",
+        description="MACD 二次背驰买卖点，过滤假信号",
+        signals_config_template=[
+            {"name": "czsc.signals.tas_macd_second_bs_V221201", "freq": "{freq}", "di": 1, "fastperiod": 12, "slowperiod": 26, "signalperiod": 9},
+        ],
+        key_patterns=[("BS2辅助V221201", "二买", "二卖")],
+    ),
+    BSStrategy(
+        name="布林带背驰",
+        description="布林带收窄后的背驰信号",
+        signals_config_template=[
+            {"name": "czsc.signals.tas_boll_bc_V221118", "freq": "{freq}", "di": 1, "n": 3, "m": 10, "line": 3, "timeperiod": 20},
+        ],
+        key_patterns=[("背驰V221118", "一买", "一卖")],
+    ),
+    BSStrategy(
+        name="KDJ 超买超卖",
+        description="KDJ 多空排列信号",
+        signals_config_template=[
+            {"name": "czsc.signals.tas_kdj_base_V221101", "freq": "{freq}", "di": 1, "fastk_period": 9, "slowk_period": 3, "slowd_period": 3},
+        ],
+        key_patterns=[("KDJ辅助V221101", "多头", "空头")],
+    ),
+    BSStrategy(
+        name="RSI 超买超卖",
+        description="RSI 超买超卖信号",
+        signals_config_template=[
+            {"name": "czsc.signals.tas_rsi_base_V230227", "freq": "{freq}", "di": 1, "n": 6, "th": 20, "timeperiod": 6},
+        ],
+        key_patterns=[("RSI辅助V230227", "超卖", "超买")],
+    ),
+    BSStrategy(
+        name="压力支撑位",
+        description="关键压力/支撑价位标记",
+        signals_config_template=[
+            {"name": "czsc.signals.pressure_support_V240222", "freq": "{freq}", "di": 1, "w": 20},
+        ],
+        key_patterns=[("支撑压力V240222", "支撑位", "压力位")],
+    ),
+    BSStrategy(
+        name="MACD 面积背驰",
+        description="基于笔中枢的 MACD 面积背驰信号",
+        signals_config_template=[
+            {"name": "czsc.signals.zdy_macd_bc_V230422", "freq": "{freq}", "di": 1, "th": 50},
+        ],
+        key_patterns=[("BS辅助V230422", "下跌", "上涨")],
+    ),
 ]
 
 
