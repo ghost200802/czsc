@@ -868,12 +868,10 @@ def mark_v_reversal(df: pd.DataFrame, **kwargs):
     rs = kwargs.get("rs", True)
 
     if rs:
-        from rs_czsc import CZSC, format_standard_kline
+        from rs_czsc import CZSC, Direction, format_standard_kline
     else:
         from czsc.core import CZSC
         from czsc.utils.bar_generator import format_standard_kline
-
-    from czsc.core import Direction
 
     # 参数设置
     min_power_percentile = kwargs.get("min_power_percentile", 0.7)

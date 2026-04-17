@@ -10,8 +10,11 @@ from typing import Any
 
 import numpy as np
 
-from czsc.core import BI, Direction, ZS
-from czsc.py.objects import RawBar
+try:
+    from czsc.core import Direction
+except ImportError:
+    from czsc.py.enum import Direction
+from czsc.py.objects import BI, ZS, RawBar
 
 
 def create_single_signal(**kwargs) -> OrderedDict:
